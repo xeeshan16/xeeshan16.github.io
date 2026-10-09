@@ -1,0 +1,41 @@
+---
+interface Props { email: string }
+const { email } = Astro.props;
+---
+<span class="copy-email">
+  <a href={`mailto:${email}`} data-email>{email}</a>
+  <button type="button" class="copy" data-copy={email}>Copy</button>
+</span>
+
+<script>
+  document.querySelectorAll<HTMLButtonElement>('button[data-copy]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const text = btn.dataset.copy ?? '';
+      try {
+        await navigator.clipboard.writeText(text);
+        btn.textContent = 'Copied';
+      } catch {
+        const link = btn.parentElement?.querySelector('[data-email]');
+        if (link) {
+          const r = document.createRange();
+          r.selectNodeContents(link);
+          const s = window.getSelection();
+          s?.removeAllRanges();
+          s?.addRange(r);
+        }
+        btn.textContent = 'Selected';
+      }
+      setTimeout(() => (btn.textContent = 'Copy'), 1600);
+    });
+  });
+</script>
+
+<style>
+  .copy-email { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 10px; min-width: 0; }
+  a { overflow-wrap: anywhere; }
+  .copy {
+    font: inherit; font-size: 0.75rem; background: transparent; color: var(--fg);
+    border: 1px solid var(--rule); border-radius: 3px; padding: 3px 10px; cursor: pointer;
+  }
+  .copy:hover { border-color: var(--accent); color: var(--accent); }
+</style>

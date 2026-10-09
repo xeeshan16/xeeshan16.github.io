@@ -1,0 +1,119 @@
+---
+// A sequence diagram: participants across the top, messages flowing down in order.
+// Used inline in .mdx case studies. Colours come from the theme tokens.
+
+interface Participant { id: string; title: string; sub?: string }
+type Item =
+  | { type: 'msg'; from: string; to: string; label: string; reply?: boolean }
+  | { type: 'note'; at: string; label: string; accent?: boolean }
+  | { type: 'divider'; label: string };
+
+interface Props {
+  id: string;
+  title: string;
+  caption?: string;
+  participants: Participant[];
+  items: Item[];
+}
+const { id, title, caption, participants, items } = Astro.props;
+
+const WIDTH = 960;
+const MARGIN = 110;
+const HEAD_Y = 16;
+const HEAD_H = 50;
+const ROW = 40;
+const START = HEAD_Y + HEAD_H + 34;
+const gap = (WIDTH - MARGIN * 2) / Math.max(participants.length - 1, 1);
+const xOf = new Map(participants.map((p, i) => [p.id, MARGIN + i * gap]));
+const x = (key: string) => {
+  const v = xOf.get(key);
+  if (v === undefined) throw new Error(`Sequence "${id}": unknown participant "${key}"`);
+  return v;
+};
+
+let step = 0;
+const rows = items.map((it, i) => ({ ...it, y: START + i * ROW, n: it.type === 'msg' && !it.reply ? ++step : undefined }));
+const height = START + items.length * ROW + 6;
+const arrow = `${id}-arrow`;
+---
+<figure class="seq">
+  <div class="scroll">
+    <svg viewBox={`0 0 ${WIDTH} ${height}`} role="img" aria-labelledby={`${id}-title`}>
+      <title id={`${id}-title`}>{title}</title>
+      <defs>
+        <marker id={arrow} viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" class="arrowhead" />
+        </marker>
+      </defs>
+
+      {participants.map((p) => (
+        <g>
+          <line x1={x(p.id)} y1={HEAD_Y + HEAD_H} x2={x(p.id)} y2={height - 4} class="lifeline" />
+          <rect x={x(p.id) - 85} y={HEAD_Y} width="170" height={HEAD_H} rx="5" class="head" />
+          <text x={x(p.id)} y={HEAD_Y + (p.sub ? 21 : 29)} class="head-title">{p.title}</text>
+          {p.sub && <text x={x(p.id)} y={HEAD_Y + 37} class="head-sub">{p.sub}</text>}
+        </g>
+      ))}
+
+      {rows.map((r) => {
+        if (r.type === 'divider') {
+          const w = r.label.length * 6.2 + 20;
+          return (
+            <g>
+              <line x1="12" y1={r.y} x2={WIDTH - 12} y2={r.y} class="divider" />
+              <rect x={WIDTH / 2 - w / 2} y={r.y - 11} width={w} height="22" rx="11" class="divider-pill" />
+              <text x={WIDTH / 2} y={r.y + 4} class="divider-text">{r.label}</text>
+            </g>
+          );
+        }
+        if (r.type === 'note') {
+          const w = r.label.length * 6.4 + 24;
+          const cx = Math.min(Math.max(x(r.at), w / 2 + 8), WIDTH - w / 2 - 8);
+          return (
+            <g class:list={['note', { accent: r.accent }]}>
+              <rect x={cx - w / 2} y={r.y - 13} width={w} height="26" rx="4" />
+              <text x={cx} y={r.y + 4}>{r.label}</text>
+            </g>
+          );
+        }
+        const x1 = x(r.from);
+        const x2 = x(r.to);
+        const mid = (x1 + x2) / 2;
+        return (
+          <g>
+            <line x1={x1} y1={r.y} x2={x2 + (x2 > x1 ? -2 : 2)} y2={r.y} class:list={['msg', { reply: r.reply }]} marker-end={`url(#${arrow})`} />
+            <text x={mid} y={r.y - 7} class:list={['msg-label', { reply: r.reply }]}>{r.n ? `${r.n}. ` : ''}{r.label}</text>
+          </g>
+        );
+      })}
+    </svg>
+  </div>
+  {caption && <figcaption>{caption}</figcaption>}
+</figure>
+
+<style>
+  .seq { margin: 1.6em 0 1.8em; background: var(--surface); border-radius: var(--radius); padding: clamp(14px, 2.5vw, 22px); }
+  .scroll { overflow-x: auto; }
+  .scroll > svg { display: block; width: 100%; min-width: 720px; height: auto; }
+  figcaption { margin-top: 12px; font-size: 0.875rem; color: var(--muted); }
+
+  .lifeline { stroke: var(--rule); stroke-width: 1.4; stroke-dasharray: 4 4; }
+  .head { fill: var(--bg); stroke: var(--rule); stroke-width: 1.4; }
+  .head-title { font: 600 13px var(--font-body); fill: var(--fg); text-anchor: middle; }
+  .head-sub { font: 400 10px var(--font-mono); fill: var(--muted); text-anchor: middle; }
+
+  .msg { stroke: var(--fg); stroke-opacity: 0.7; stroke-width: 1.4; }
+  .msg.reply { stroke: var(--muted); stroke-opacity: 1; stroke-dasharray: 5 4; }
+  .arrowhead { fill: var(--muted); }
+  .msg-label { font: 500 11px var(--font-mono); fill: var(--fg); text-anchor: middle; }
+  .msg-label.reply { fill: var(--muted); font-weight: 400; }
+
+  .note rect { fill: var(--raised); stroke: var(--rule); stroke-width: 1.2; }
+  .note text { font: 500 11px var(--font-mono); fill: var(--fg); text-anchor: middle; }
+  .note.accent rect { fill: var(--accent-soft); stroke: var(--accent); }
+  .note.accent text { fill: var(--accent); }
+
+  .divider { stroke: var(--accent); stroke-width: 1.2; stroke-dasharray: 6 4; }
+  .divider-pill { fill: var(--surface); stroke: var(--accent); stroke-width: 1.2; }
+  .divider-text { font: 600 10.5px var(--font-mono); fill: var(--accent); text-anchor: middle; }
+</style>

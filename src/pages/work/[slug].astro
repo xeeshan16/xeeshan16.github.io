@@ -1,0 +1,162 @@
+---
+import { getCollection, render } from 'astro:content';
+import Base from '../../layouts/Base.astro';
+import Metrics from '../../components/Metrics.astro';
+import ArchitectureDiagram from '../../components/ArchitectureDiagram.astro';
+import { diagrams } from '../../data/architecture';
+import { readingMinutes } from '../../lib/case-study';
+
+export async function getStaticPaths() {
+  const work = (await getCollection('work', ({ data }) => !data.draft)).sort((a, b) => a.data.order - b.data.order);
+  return work.map((entry, i) => ({
+    params: { slug: entry.id },
+    props: { entry, next: work[(i + 1) % work.length] },
+  }));
+}
+
+const { entry, next } = Astro.props;
+const { Content, headings } = await render(entry);
+const d = entry.data;
+const diagram = diagrams[entry.id];
+const minutes = readingMinutes(entry.body);
+const shortLabel: Record<string, string> = { 'Key decisions': 'Decisions', 'Production stories': 'Stories', 'Production story': 'Story', "What I'd do differently": 'Hindsight', 'What I’d do differently': 'Hindsight' };
+const sections = [
+  ...(diagram ? [{ slug: 'architecture', text: 'Architecture' }] : []),
+  ...headings.filter((h) => h.depth === 2).map((h) => ({ slug: h.slug, text: shortLabel[h.text] ?? h.text })),
+];
+---
+<Base title={d.title} description={d.summary} type="article">
+  <article>
+    <header class="container head">
+      <a class="back" href="/#work"><span aria-hidden="true">←</span> All work</a>
+      <p class="eyebrow meta">{d.company} · {d.area}<span class="mins"> · {minutes} min read</span></p>
+      <h1>{d.title}</h1>
+      <p class="summary">{d.summary}</p>
+      <div class="facts">
+        <Metrics items={d.metrics} />
+      </div>
+      {d.role && (
+        <dl class="role">
+          <div><dt class="eyebrow">My role</dt><dd>{d.role.title}</dd></div>
+          {d.role.period && <div><dt class="eyebrow">When</dt><dd>{d.role.period}</dd></div>}
+          {d.role.team && <div><dt class="eyebrow">Team</dt><dd>{d.role.team}</dd></div>}
+          <div class="wide"><dt class="eyebrow">Scope</dt><dd>{d.role.scope}</dd></div>
+        </dl>
+      )}
+      <div class="stack">
+        <span class="eyebrow">Stack</span>
+        <ul class="chips">{d.stack.map((s) => <li>{s}</li>)}</ul>
+      </div>
+    </header>
+
+    <nav class="jump" aria-label="On this page">
+      <div class="container jump-row">
+        {sections.map((sec) => <a href={`#${sec.slug}`} data-jump={sec.slug}>{sec.text}</a>)}
+      </div>
+    </nav>
+
+    {diagram && (
+      <section class="container figure" id="architecture" aria-labelledby="hld-heading">
+        <h2 class="eyebrow fig-label" id="hld-heading">High-level architecture</h2>
+        <ArchitectureDiagram diagram={diagram} id={`hld-${entry.id}`} />
+      </section>
+    )}
+
+    <div class="container body">
+      <div class="prose"><Content /></div>
+    </div>
+
+    {next && next.id !== entry.id && (
+      <nav class="container next" aria-label="Next case study">
+        <a href={`/work/${next.id}/`}>
+          <span class="eyebrow">Next case study</span>
+          <span class="next-title">{next.data.title} <span aria-hidden="true">→</span></span>
+        </a>
+      </nav>
+    )}
+  </article>
+</Base>
+
+<script>
+  // Highlight the section currently in view.
+  const links = new Map(
+    [...document.querySelectorAll<HTMLAnchorElement>('[data-jump]')].map((a) => [a.dataset.jump!, a]),
+  );
+  const targets = [...links.keys()].map((id) => document.getElementById(id)).filter(Boolean) as HTMLElement[];
+  let active = '';
+  const setActive = (id: string) => {
+    if (id === active) return;
+    active = id;
+    links.forEach((a, key) => {
+      if (key !== id) return a.removeAttribute('aria-current');
+      a.setAttribute('aria-current', 'true');
+      // Keep the active link visible in the scrollable row without touching page scroll.
+      const row = a.parentElement!;
+      if (a.offsetLeft < row.scrollLeft || a.offsetLeft + a.offsetWidth > row.scrollLeft + row.clientWidth) {
+        row.scrollLeft = a.offsetLeft - 16;
+      }
+    });
+  };
+  const onScroll = () => {
+    let current = targets[0]?.id;
+    for (const t of targets) if (t.getBoundingClientRect().top < 160) current = t.id;
+    if (current) setActive(current);
+  };
+  window.addEventListener('scroll', onScroll, { passive: true });
+  onScroll();
+</script>
+
+<style>
+  .head { padding-block: clamp(32px, 6vw, 72px) 28px; }
+  .mins { color: var(--muted); }
+  .jump {
+    position: sticky; top: calc(env(safe-area-inset-top, 0px) + 61px); z-index: 40;
+    background: color-mix(in srgb, var(--bg) 90%, transparent);
+    backdrop-filter: saturate(1.4) blur(10px); -webkit-backdrop-filter: saturate(1.4) blur(10px);
+    border-block: 1px solid var(--rule); margin-bottom: 28px;
+  }
+  .jump-row { display: flex; gap: 4px; overflow-x: auto; scrollbar-width: none; padding-block: 8px; }
+  .jump-row::-webkit-scrollbar { display: none; }
+  .jump a {
+    flex: none; font-family: var(--font-mono); font-size: 0.75rem; letter-spacing: 0.04em; text-decoration: none;
+    color: var(--muted); padding: 5px 10px; border-radius: 999px; border: 1px solid transparent;
+  }
+  .jump a:hover { color: var(--fg); border-color: var(--rule); }
+  .jump a[aria-current] { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
+  #architecture { scroll-margin-top: 130px; }
+  .body :global(.prose h2) { scroll-margin-top: 130px; }
+  .back { display: inline-block; font-size: 0.9375rem; text-decoration: none; color: var(--muted); margin-bottom: 32px; }
+  .back:hover { color: var(--accent); }
+  .meta { margin: 0 0 14px; color: var(--accent); }
+  h1 {
+    font-family: var(--font-display); font-variation-settings: 'wdth' 114; font-weight: 780;
+    font-size: clamp(2.25rem, 6vw, 4rem); line-height: 1; letter-spacing: -0.02em; margin: 0; max-width: 18ch;
+  }
+  .summary { font-size: var(--step-1); max-width: 62ch; margin: 22px 0 0; }
+  .facts { margin-top: 28px; }
+  .role {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr)); gap: 0;
+    margin: 28px 0 0; border: 1px solid var(--rule); border-radius: var(--radius); background: var(--raised);
+  }
+  .role > div { padding: 14px 18px; border-left: 1px solid var(--rule); min-width: 0; }
+  .role > div:first-child { border-left: 0; }
+  .role .wide { grid-column: span 2; }
+  @media (max-width: 640px) {
+    .role > div { border-left: 0; border-top: 1px solid var(--rule); }
+    .role > div:first-child { border-top: 0; }
+    .role .wide { grid-column: auto; }
+  }
+  .role dt { margin-bottom: 4px; }
+  .role dd { margin: 0; font-weight: 500; line-height: 1.45; }
+  .stack { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; margin-top: 22px; }
+  .figure { margin-block: 16px 8px; }
+  .fig-label { margin: 0 0 12px; font-weight: 500; color: var(--accent); }
+  .body { padding-block: 40px 24px; }
+  .next { padding-block: 24px 48px; }
+  .next a {
+    display: flex; flex-direction: column; gap: 6px; padding: 24px; text-decoration: none;
+    border: 1px solid var(--rule); border-radius: var(--radius); background: var(--raised);
+  }
+  .next a:hover { border-color: var(--accent); }
+  .next-title { font-family: var(--font-display); font-variation-settings: 'wdth' 108; font-weight: 700; font-size: var(--step-2); }
+</style>

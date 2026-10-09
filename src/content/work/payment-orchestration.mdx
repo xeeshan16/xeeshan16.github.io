@@ -1,0 +1,111 @@
+---
+title: Enterprise Payment Orchestration
+company: ADCB
+area: Cards and wallet payments
+order: 1
+featured: true
+summary: Greenfield payment microservices for cards, wallets and anti-fraud, built around the parts that have to be right every time — idempotency, concurrency, reconciliation and safe rollouts.
+metrics:
+  - value: "100K+"
+    label: card and payment transactions
+stack: [Java 17/21, Kotlin, Spring Boot 3, Spring Security, Hibernate, Resilience4j, PostgreSQL, Oracle, Kafka, SQS, Azure AKS, JUnit 5, Testcontainers, Pact]
+role:
+  title: Lead Backend Engineer
+  period: Nov 2025 – Present
+  team: Team of 6 engineers
+  scope: Owner of the payment-lifecycle services. I run design and code reviews for the team.
+---
+
+import SequenceDiagram from '../../components/SequenceDiagram.astro';
+import ArchitectureDiagram from '../../components/ArchitectureDiagram.astro';
+import { paymentStateModel } from '../../data/architecture';
+
+## Context
+
+The platform moves card and wallet payments between customer channels, partner networks and the bank's core systems, and it feeds anti-fraud and transaction-risk workflows along the way. In payments a bug rarely shows up as an error. It shows up later as a customer charged twice or a ledger that doesn't balance.
+
+## Approach
+
+- Java 17/21, Kotlin and Spring Boot 3 services, using Java concurrency (the Executor framework, CompletableFuture) and explicit transaction boundaries on PostgreSQL and Oracle.
+- A Kafka- and SQS-driven architecture: Kafka for payment events between services, SQS where a buffered work queue fit better, and idempotent consumers throughout.
+- Secure REST APIs with OAuth2 and Spring Security, plus mutual TLS.
+- Containerised services deployed to Azure AKS through CI/CD, with Kubernetes probes and PodDisruptionBudgets so rollouts and node maintenance don't drop traffic.
+- Distributed, time-ordered transaction IDs generated with the Snowflake algorithm, so no service has to ask a central sequence.
+
+## Key decisions
+
+**Isolate slow dependencies instead of scaling into them.** When downstream services slowed, the obvious responses were to scale out consumers or add aggressive retries. I rejected both: they would have sent even more load to dependencies that were already struggling. Instead we used a Kafka and SQS architecture with back-pressure and circuit breakers, so a slow service is isolated without blocking payments.
+
+**Prove fraud and risk changes on real traffic first.** Before a change to fraud or risk logic goes fully live, a controlled subset of production traffic is routed to services hardened with Resilience4j, and we compare latency, error rates and false-positive and false-negative rates against the existing flow.
+
+**Reconcile everything.** I built reconciliation for card settlement files, wallet balances and mismatches between partner records and core banking, so discrepancies are caught by the system rather than by a customer.
+
+**Test the contracts between services.** Alongside unit tests with JUnit 5 and Mockito and integration tests on real databases with Testcontainers, Pact contract tests catch a breaking API change before it ships.
+
+## Production stories
+
+### Duplicate payments from Kafka redeliveries
+
+**What happened.** Kafka delivers at least once. After a consumer restart or a partition rebalance, messages that had already been processed were delivered again, and some payments were processed twice.
+
+**The fix.** The rule is simple: a redelivered message must never initiate a second payment. Each transaction is identified by a stable payment (idempotency) key, and the consumer checks its persisted state before doing anything. State transitions are atomic, so two consumers can't claim the same payment at the same time. A redelivery of a payment that already succeeded is acknowledged and skipped.
+
+<SequenceDiagram
+  id="seq-idempotent-consumer"
+  title="Idempotent consumer: the first delivery of payment T1 is atomically claimed from RECEIVED to PROCESSING, posted to core banking, and marked SUCCEEDED. The consumer restarts before committing its Kafka offset, so Kafka redelivers T1. The lookup finds T1 already SUCCEEDED, so the consumer skips it and commits the offset without charging twice."
+  caption="The payment key and its persisted state are the source of truth: a redelivery of a payment that already succeeded is recognised and skipped instead of charged again."
+  participants={[
+    { id: 'kafka', title: 'Kafka', sub: 'payments topic' },
+    { id: 'consumer', title: 'Payment consumer', sub: 'Spring Boot' },
+    { id: 'db', title: 'Database', sub: 'payment key · state' },
+    { id: 'core', title: 'Core banking', sub: 'system of record' },
+  ]}
+  items={[
+    { type: 'msg', from: 'kafka', to: 'consumer', label: 'PaymentRequested · txn T1' },
+    { type: 'msg', from: 'consumer', to: 'db', label: 'claim T1 · RECEIVED → PROCESSING' },
+    { type: 'msg', from: 'db', to: 'consumer', label: 'claimed — no one else has it', reply: true },
+    { type: 'msg', from: 'consumer', to: 'core', label: 'post payment T1' },
+    { type: 'msg', from: 'core', to: 'consumer', label: 'posted', reply: true },
+    { type: 'msg', from: 'consumer', to: 'db', label: 'mark T1 SUCCEEDED' },
+    { type: 'divider', label: 'Consumer restarts before committing its offset — Kafka redelivers T1' },
+    { type: 'msg', from: 'kafka', to: 'consumer', label: 'PaymentRequested · txn T1 (again)' },
+    { type: 'msg', from: 'consumer', to: 'db', label: 'look up T1' },
+    { type: 'msg', from: 'db', to: 'consumer', label: 'T1 already SUCCEEDED', reply: true },
+    { type: 'note', at: 'consumer', label: 'skip — no second charge', accent: true },
+    { type: 'msg', from: 'consumer', to: 'kafka', label: 'commit offset' },
+  ]}
+/>
+
+**When the outcome is unknown.** The hard case is a crash or timeout after the payment was sent but before its result was recorded. That payment isn't safe to skip and isn't safe to resend. Instead of blindly resubmitting, the consumer marks it PENDING (or UNKNOWN) and verifies the outcome with the authoritative payment or orchestration system. Transient failures get bounded retries; payments that stay unresolved or go stale move into reconciliation, with monitoring and alerting so someone sees them.
+
+<ArchitectureDiagram
+  diagram={paymentStateModel}
+  id="payment-states"
+  compact
+  caption="Payment state model. The happy path is RECEIVED → PROCESSING → SUCCEEDED or FAILED; PENDING/UNKNOWN exists so an uncertain payment is verified, never resubmitted on a guess."
+/>
+
+### Deadlocks on concurrent wallet balance updates
+
+**What happened.** Concurrent updates to wallet balances deadlocked in PostgreSQL and Oracle: two transactions each held a lock the other needed, and the database had to abort one of them.
+
+**The fix.** Two changes. Shorter transactions, so locks are held for less time and contention windows shrink. And a consistent lock order, so any two transactions that touch the same rows acquire their locks in the same sequence and can never wait on each other in a cycle.
+
+### Latency spikes from GC pressure under load
+
+**What happened.** Under load, garbage-collection pauses on the Java payment services showed up as latency spikes.
+
+**The fix.** Four changes, each aimed at either allocating less or collecting more predictably:
+
+- Tuned the garbage collector and its settings.
+- Optimised the services' thread pools.
+- Removed orphaned objects that were retaining memory.
+- Switched Spring beans from prototype to singleton scope where they held no per-use state, cutting allocation churn.
+
+## What I'd do differently
+
+I'd build automated reconciliation and stale-pending detection earlier, rather than after the core flow was live. Backed by the idempotency guarantees and by replay testing — deliberately re-running retries, duplicate deliveries and ambiguous outcomes against the system — they turn payment correctness from something we reasoned about into something we continuously prove.
+
+## Outcome
+
+Fault-tolerant processing for more than 100,000 card and payment transactions, measured by guaranteed delivery and idempotent handling of retries, underpinning the bank's credit card, wallet and anti-fraud products. Payment flows stay stable when downstream services slow down. I lead the six engineers who build and run it.

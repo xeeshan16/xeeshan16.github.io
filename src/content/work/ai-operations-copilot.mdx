@@ -1,0 +1,100 @@
+---
+title: AI Operations Copilot
+company: ADCB
+area: Banking operations
+order: 2
+featured: true
+summary: A multi-agent assistant that gathers incident context across ten banking services and recommends next steps, with a validation gate and a human signing off on every action.
+metrics:
+  - value: "~60%"
+    label: lower mean time to resolve
+  - value: "10"
+    label: banking services covered
+  - value: "2M+"
+    label: documents in the retrieval corpus
+  - value: "20K+"
+    label: daily events across the services it covers
+stack: [LangGraph, LangChain, FastAPI, FastMCP, Azure OpenAI, Pinecone, Kafka, Redis, AKS, React, TypeScript]
+role:
+  title: Lead Backend Engineer
+  period: Nov 2025 – Present
+  team: Team of 6 engineers
+  scope: Designed and built the copilot, and own it. I run its design and code reviews.
+---
+
+import SequenceDiagram from '../../components/SequenceDiagram.astro';
+
+## Context
+
+When an incident hit one of our banking services, the engineer on call spent the first stretch of it gathering context: runbooks, recent alerts, past tickets, service documentation. That gathering was slow, inconsistent between engineers, and happened at exactly the moment speed mattered most.
+
+The goal was an assistant that does the gathering and proposes a next step. In a bank it also had to be safe by construction: nothing it says reaches an engineer unchecked, and it never acts on a production system by itself.
+
+## Approach
+
+I designed it as a LangGraph graph of four agents with narrow jobs rather than one large prompt:
+
+- **Planner** turns the incident or question into a sequence of steps.
+- **Retriever** pulls evidence from a RAG corpus of more than two million documents and attaches citations to every claim.
+- **Validator** checks the draft answer against the retrieved evidence and the caller's permissions. Nothing that fails reaches an engineer.
+- **Executor** prepares the recommended action for a human to review. The copilot supports decisions; it does not make them.
+
+Agents reach banking systems through MCP tools served with FastMCP. Every tool call is authorised against the caller, scoped to what that tool needs, and written to an audit trail.
+
+## Key decisions
+
+**Separate agents over one large prompt.** Splitting planning, retrieval and validation made each step testable on its own and gave us one obvious place to enforce safety, the Validator.
+
+**Retrieval quality is the product.** Most bad answers traced back to bad context, so most of the tuning went into chunking, embeddings and metadata filters, not prompts.
+
+**Measure it like a system.** We evaluated precision and recall against examples that reviewers had validated, and red-teamed the copilot with wrong context, ambiguous requests, unsupported questions, invalid tool inputs and attempts to cross permission boundaries.
+
+## Production story
+
+### Plausible answers that the evidence didn't support
+
+**What happened.** A typical case: an engineer investigates a Kafka consumer-lag alert. The copilot retrieves a general troubleshooting guide and suggests the lag is caused by a downstream service outage, but nothing in the available telemetry establishes that link. Acting on it would waste investigation time, or worse, prompt an unnecessary change in production. The answer sounded right; it just wasn't grounded.
+
+**The fix.** I tackled it at two layers.
+
+- **Retrieval.** Queries now carry the incident's context — the affected service, environment, alert description and time window — and use metadata filters, so service-specific runbooks and relevant diagnostic evidence rank above generic guidance.
+- **Validation.** The Validator step in the LangGraph workflow checks whether each claim in the proposed diagnosis is supported by the retrieved evidence, and flags unsupported claims, missing evidence and contradictions between the answer and its sources. When the evidence falls short, the workflow refines the retrieval query and tries again; if it still falls short, the copilot says what it doesn't know instead of presenting a guess as fact.
+
+<SequenceDiagram
+  id="seq-validator-loop"
+  title="Validator loop: the engineer's consumer-lag alert is sent to the Retriever with service, environment and time window. The Retriever searches the knowledge base with metadata filters and drafts a diagnosis. The Validator finds the downstream-outage claim unsupported and asks for a refined query. The refined search finds no supporting evidence, so the Validator returns only the supported findings and states the uncertainty explicitly."
+  caption="When a claim can't be traced to evidence, the workflow retrieves again with a sharper query, and abstains on that claim if the evidence still isn't there."
+  participants={[
+    { id: 'eng', title: 'On-call engineer', sub: 'consumer-lag alert' },
+    { id: 'retriever', title: 'Retriever', sub: 'context-aware query' },
+    { id: 'kb', title: 'Knowledge base', sub: 'Pinecone · metadata' },
+    { id: 'validator', title: 'Validator', sub: 'grounding check' },
+  ]}
+  items={[
+    { type: 'msg', from: 'eng', to: 'retriever', label: 'alert · service, env, time window' },
+    { type: 'msg', from: 'retriever', to: 'kb', label: 'search + metadata filters' },
+    { type: 'msg', from: 'kb', to: 'retriever', label: 'service runbook, related alerts', reply: true },
+    { type: 'msg', from: 'retriever', to: 'validator', label: 'draft diagnosis + sources' },
+    { type: 'note', at: 'validator', label: '"downstream outage" — no evidence' },
+    { type: 'msg', from: 'validator', to: 'retriever', label: 'unsupported claim · refine query' },
+    { type: 'msg', from: 'retriever', to: 'kb', label: 'refined search' },
+    { type: 'msg', from: 'kb', to: 'retriever', label: 'nothing links lag to an outage', reply: true },
+    { type: 'msg', from: 'retriever', to: 'validator', label: 'revised draft + sources' },
+    { type: 'note', at: 'validator', label: 'insufficient evidence → abstain', accent: true },
+    { type: 'msg', from: 'validator', to: 'eng', label: 'supported findings + stated uncertainty' },
+  ]}
+/>
+
+**How I validated it.** Representative incident scenarios — known root causes, incomplete telemetry, conflicting evidence, and questions the knowledge base can't answer — scored on retrieval relevance, factual grounding, source traceability and whether the copilot correctly abstained when it should. Regression runs on the same suite made sure the change didn't break scenarios that already worked.
+
+**The result.** Fewer unsupported recommendations, and engineers reaching the relevant diagnostic evidence faster. The platform as a whole is associated with roughly 60% lower mean time to resolve across ten banking services; I don't attribute that number to this change alone.
+
+**The lesson.** A production copilot needs more than a capable LLM. Retrieval quality, evidence-based validation, handling uncertainty honestly and regression testing are what make AI usable in a business-critical environment.
+
+## What I'd do differently
+
+I'd build a representative evaluation dataset and the evidence-validation checks before expanding production usage, not alongside it. Measuring retrieval relevance, factual grounding and the copilot's ability to acknowledge uncertainty from day one would have caught ungrounded answers before engineers ever saw them.
+
+## Outcome
+
+Mean time to resolve incidents dropped by roughly 60% across the ten services the copilot covers, and it now processes more than 20,000 operational events a day.

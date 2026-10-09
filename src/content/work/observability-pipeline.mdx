@@ -1,0 +1,102 @@
+---
+title: High-Throughput Observability Platform
+company: SolarWinds
+area: Observability
+order: 3
+summary: Go stream processors and Java ETL workers that keep p99 queries under a second on high-throughput telemetry, streaming anomaly detection that alerts on a one-second cadence, and an AI-assisted pipeline built to survive LLM outages and cost spikes.
+metrics:
+  - value: "<1s"
+    label: p99 query latency on high-throughput workloads
+  - value: "1s"
+    label: alerting cadence into ServiceNow and PagerDuty
+stack: [Go, Java, Spring Boot, Project Reactor, Kafka, ClickHouse, PostgreSQL, MongoDB, DynamoDB, Apache Spark, GCP BigQuery, GKE, AWS EKS, Terraform]
+role:
+  title: Senior Software Engineer, Observability Platform
+  period: Jul 2023 – Nov 2025
+  scope: Go stream processors, Java ETL workers, streaming alerting, LLM reliability controls and DynamoDB services. Mentored 4 engineers.
+---
+
+import SequenceDiagram from '../../components/SequenceDiagram.astro';
+
+## Context
+
+An observability platform is only useful if engineers can query it while an incident is happening. Telemetry arrived at high volume, and the platform had to answer queries quickly and flag anomalies within seconds.
+
+## Approach
+
+- Go stream processors and Java ETL workers ingesting Kafka events into ClickHouse, alongside PostgreSQL and MongoDB.
+- Reactive buffering with Project Reactor to absorb bursts without overwhelming downstream stores.
+- Indexing and query tuning to keep p99 query latency under a second.
+- Spark Structured Streaming for anomaly detection on GCP (GKE, BigQuery), alerting into ServiceNow and PagerDuty every second.
+- LLM-written summaries in an AI-assisted part of the pipeline, guarded by provider failover, circuit breakers and token budgets.
+- Low-latency Go services on DynamoDB with optimistic concurrency, and partner APIs secured with OAuth2, mutual TLS and HMAC request signing.
+- Services deployed to AWS EKS through CI/CD, with infrastructure managed in Terraform.
+
+## Key decisions
+
+**Apply backpressure instead of buying headroom.** Reactive buffering smooths ingestion spikes so the stores see a steady load, rather than sizing everything for the peak.
+
+**Fix latency at the data layer.** Shape and index data on the way in, so queries stay cheap at read time, rather than adding compute on the way out.
+
+**Treat the LLM as an unreliable dependency.** Provider failover, circuit breakers and token budgets mean a slow provider, an outage or a runaway prompt degrades the summaries but never blocks ingestion or alerting, and LLM spend stays inside a budget.
+
+## Production story
+
+### Query latency climbing during ingestion bursts
+
+**What happened.** Ingestion and queries hit the same stores, and on a high-throughput platform the moment engineers query hardest — during an incident — is also when telemetry volume spikes. When bursts reached the stores at full speed, writes competed with reads, and query latency rose exactly when engineers were waiting on it.
+
+**How I found it.** I profiled and debugged the live Java and Go services rather than guessing from staging, to see where the time actually went between ingestion, storage and the query path. I mentored four engineers through the same approach.
+
+**The fix.** Three layers, each removing a different source of latency:
+
+- **Reactive buffering with Project Reactor.** The ingest services pull from Kafka only as fast as downstream can absorb, and buffer records into batches. During a burst, back-pressure lets Kafka hold the backlog instead of the database, so the stores see a steady write rate.
+- **ETL optimisation on the way in.** Data is shaped for the queries engineers actually run before it's stored, so queries don't redo that work at read time.
+- **Indexing and query tuning** in ClickHouse and the other stores, so the hot queries read only what they need and p99 latency stays under a second.
+
+<SequenceDiagram
+  id="seq-backpressure"
+  title="Back-pressure during a burst: the ingest service pulls records from Kafka on demand, buffers them and writes batches to the store. When traffic spikes, the buffer fills and the service stops requesting, so the backlog waits in Kafka while writes continue at a steady rate. An engineer's query during the burst still returns in under a second."
+  caption="Back-pressure keeps the burst in Kafka, not in the database, so writes stay steady and queries stay fast during the moments that matter most."
+  participants={[
+    { id: 'kafka', title: 'Kafka', sub: 'telemetry topics' },
+    { id: 'ingest', title: 'Ingest', sub: 'Go · Java ETL · Reactor' },
+    { id: 'store', title: 'Stores', sub: 'ClickHouse · PG · Mongo' },
+    { id: 'query', title: 'Query API', sub: 'engineers · dashboards' },
+  ]}
+  items={[
+    { type: 'msg', from: 'ingest', to: 'kafka', label: 'request records (demand)' },
+    { type: 'msg', from: 'kafka', to: 'ingest', label: 'records', reply: true },
+    { type: 'note', at: 'ingest', label: 'buffer · shape · batch' },
+    { type: 'msg', from: 'ingest', to: 'store', label: 'batched, indexed write' },
+    { type: 'divider', label: 'Traffic burst — telemetry volume spikes' },
+    { type: 'note', at: 'ingest', label: 'buffer full → stop requesting', accent: true },
+    { type: 'note', at: 'kafka', label: 'backlog waits in Kafka' },
+    { type: 'msg', from: 'ingest', to: 'store', label: 'writes continue at a steady rate' },
+    { type: 'msg', from: 'query', to: 'store', label: 'incident query' },
+    { type: 'msg', from: 'store', to: 'query', label: 'result · p99 under 1s', reply: true },
+    { type: 'msg', from: 'ingest', to: 'kafka', label: 'buffer drains → request more' },
+  ]}
+/>
+
+## Under the hood
+
+### Alerting on a one-second cadence
+
+**The problem.** An anomaly is only useful if someone hears about it while it's still happening. Alerts had to reach on-call tools within a second of the data that triggered them.
+
+**The approach.** Spark Structured Streaming on GKE runs anomaly detection over the telemetry stream, separately from the query path, and raises alerts into ServiceNow and PagerDuty on a one-second cadence, with aggregates landing in BigQuery for analysis. Keeping alerting off the query path means a heavy query load can't delay an alert, and an alerting backlog can't slow a query.
+
+### Keeping LLM features from becoming a single point of failure
+
+**The problem.** Part of the pipeline used an LLM to summarise what it found for operators. LLM providers have outages, slow down under load, and bill per token, so an unguarded call could stall the pipeline or run up cost.
+
+**The approach.** Three controls around every LLM call: **provider failover**, so a failing provider is replaced by another; **circuit breakers**, so a slow provider is cut off quickly instead of tying up workers; and **token budgets**, so a runaway prompt can't blow through the cost limit. The summaries are best-effort by design: if every provider is down, operators get the alert without the summary.
+
+### Optimistic concurrency on DynamoDB
+
+**The approach.** The low-latency Go services on DynamoDB use optimistic concurrency instead of locks: each write is conditional on the version it read, so a concurrent update makes the write fail cleanly and the service re-reads and retries. Nothing waits on a lock, which keeps latency low when contention is rare.
+
+## Outcome
+
+Sub-second p99 query latency on high-throughput workloads, anomaly alerts reaching on-call tools within a second, and LLM features that degrade gracefully instead of failing the pipeline.

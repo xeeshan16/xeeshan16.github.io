@@ -1,0 +1,34 @@
+---
+interface Props {
+  items: { value: string; label: string }[];
+  size?: 'sm' | 'lg';
+}
+const { items, size = 'sm' } = Astro.props;
+---
+{items.length > 0 && (
+  <dl class:list={['metrics', size]}>
+    {items.map((m) => (
+      <div class="metric">
+        <dt>{m.label}</dt>
+        <dd>{m.value}</dd>
+      </div>
+    ))}
+  </dl>
+)}
+
+<style>
+  .metrics { display: flex; flex-wrap: wrap; gap: 10px; margin: 0; }
+  .metric {
+    display: flex; flex-direction: column-reverse; justify-content: flex-end; gap: 2px;
+    background: var(--accent-soft); border-radius: 4px; padding: 10px 14px; min-width: 0;
+  }
+  dt { font-size: 0.8125rem; color: var(--muted); line-height: 1.35; }
+  dd {
+    margin: 0; font-family: var(--font-display); font-variation-settings: 'wdth' 100; font-weight: 750;
+    font-size: 1.5rem; line-height: 1.1; font-variant-numeric: tabular-nums;
+  }
+  .metrics.lg { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+  .lg .metric { padding: 16px 20px; }
+  .lg dd { font-size: clamp(1.75rem, 4vw, 2.25rem); }
+  @media (max-width: 400px) { .lg .metric { padding: 12px 14px; } }
+</style>

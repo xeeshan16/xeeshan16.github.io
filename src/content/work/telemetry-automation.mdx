@@ -1,0 +1,66 @@
+---
+title: Telemetry Analytics & Kafka Automation
+company: ADCB
+area: Platform operations
+order: 6
+summary: Python services that analyse operational telemetry, and Kafka-driven automation that acts on it, so engineers spend less time digging before they can fix an incident.
+metrics:
+  - value: "100K+"
+    label: operational events a day
+  - value: "~40%"
+    label: less time spent troubleshooting incidents
+stack: [Python, FastAPI, Kafka]
+role:
+  title: Lead Backend Engineer
+  period: Nov 2025 – Present
+  scope: Built the telemetry analytics services and the Kafka-driven automation.
+---
+
+import SequenceDiagram from '../../components/SequenceDiagram.astro';
+
+## Context
+
+Operational signals were spread across systems, and engineers assembled the picture by hand for every incident.
+
+## Approach
+
+- FastAPI services that ingest and analyse operational telemetry.
+- Kafka consumers that react to known event patterns and trigger automated steps, so routine work doesn't wait for a person.
+
+## Production story
+
+### Rebuilding the same picture by hand on every incident
+
+**What happened.** Operational signals were spread across systems. Every incident started the same way: the on-call engineer pulled signals together by hand before they could start fixing anything, and routine issues with well-known causes still waited for a person to notice and act.
+
+**The fix.** I split the work into two flows on the same Kafka stream:
+
+- **Known patterns are automated.** Kafka consumers watch for event patterns with known responses and trigger the automated step directly, so routine work doesn't wait for a person.
+- **Everything else arrives pre-assembled.** FastAPI services ingest and analyse the telemetry, so when an engineer is needed they start from an analysed picture instead of a blank page.
+
+<SequenceDiagram
+  id="seq-pattern-automation"
+  title="Two flows on one stream: an event matching a known pattern is picked up by a Kafka consumer, which triggers the automated step on the banking service with no human involved. An event that matches no known pattern is analysed by the FastAPI services and handed to the on-call engineer with context already assembled."
+  caption="Known problems are handled automatically; unknown ones reach an engineer with the context already gathered."
+  participants={[
+    { id: 'svc', title: 'Banking service', sub: 'operational signals' },
+    { id: 'kafka', title: 'Kafka', sub: '100K+ events / day' },
+    { id: 'auto', title: 'Automation', sub: 'consumers · FastAPI' },
+    { id: 'eng', title: 'On-call engineer' },
+  ]}
+  items={[
+    { type: 'msg', from: 'svc', to: 'kafka', label: 'operational event' },
+    { type: 'msg', from: 'kafka', to: 'auto', label: 'event' },
+    { type: 'note', at: 'auto', label: 'matches a known pattern', accent: true },
+    { type: 'msg', from: 'auto', to: 'svc', label: 'automated step — no human wait' },
+    { type: 'divider', label: 'An event with no known pattern' },
+    { type: 'msg', from: 'svc', to: 'kafka', label: 'operational event' },
+    { type: 'msg', from: 'kafka', to: 'auto', label: 'event' },
+    { type: 'note', at: 'auto', label: 'no match → analyse telemetry' },
+    { type: 'msg', from: 'auto', to: 'eng', label: 'analysed picture' },
+  ]}
+/>
+
+## Outcome
+
+The services handle more than 100,000 operational events a day and cut incident troubleshooting time by about 40%.

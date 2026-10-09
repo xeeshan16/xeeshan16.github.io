@@ -1,0 +1,78 @@
+---
+title: Legacy Banking Integration Platform
+company: Publicis Sapient
+area: Fintech integrations
+order: 4
+summary: Business-critical legacy banking integrations modernised into Spring Boot, Django and Go services, with duplicate payment processing resolved through idempotency and releases made safe with canary and blue/green deployments.
+highlight: Resolved duplicate payment processing with idempotency patterns
+stack: [Java, Spring Boot, Go, Django, MySQL, MongoDB, Redis, ArgoCD]
+role:
+  title: Backend Engineer, Platform Integrations
+  period: Jul 2021 – Jul 2023
+  scope: Integration microservices, caching and rate limiting, and release safety.
+---
+
+import SequenceDiagram from '../../components/SequenceDiagram.astro';
+
+## Context
+
+Banking clients ran core systems that couldn't be replaced, but new channels and services needed to talk to them through modern middleware. The integration code between the two had grown tightly coupled, which made every change risky and every release slow.
+
+## Approach
+
+- Spring Boot microservices, with supporting services in Go and Django, bridging legacy banking systems and modern middleware over REST and message queues.
+- MySQL and MongoDB for persistence, matched to each service's access pattern.
+- Idempotency patterns on integration calls, which resolved duplicate payment processing caused by retries against slow legacy systems.
+- Redis caching and sliding-window rate limiting in front of the legacy systems.
+- Blue/green and canary deployments through CI/CD and ArgoCD.
+
+## Key decisions
+
+**Refactor toward domain boundaries.** I broke tightly coupled components apart into SOLID, DDD-based designs, so a change to one integration no longer rippled through the others and each piece could be tested on its own.
+
+**Protect the systems you can't scale.** Legacy cores have fixed capacity. Caching what could be cached and rate limiting with a sliding window kept bursts from new channels from overwhelming them.
+
+**Make releases reversible.** Blue/green and canary rollouts let a new version take a slice of real traffic first, with an instant way back if it misbehaved.
+
+## Production story
+
+### Bursts from new channels overloading legacy cores
+
+**What happened.** Legacy banking cores have fixed capacity, and they were built for the traffic patterns of the channels they already served. New digital channels arrived in bursts. Every request passed straight through to the core, so a burst became load the core couldn't absorb. Slow responses invited retries, which added more load and, without idempotency, led to duplicate payment processing.
+
+**The fix.** Three protections in the integration layer, each aimed at a different part of the problem:
+
+- **Redis caching** for responses that could safely be reused, so repeated requests never reached the core at all.
+- **Sliding-window rate limiting** in front of each legacy system, so a burst is throttled at the edge instead of passed through. A sliding window avoids the double-sized spike a fixed window allows at its boundary.
+- **Idempotency patterns** on integration calls, so a retry after a slow response can't process a payment twice. This resolved the duplicate payment processing.
+
+<SequenceDiagram
+  id="seq-legacy-protection"
+  title="Protecting a legacy core: a repeated request is served from the Redis cache without reaching the core. During a burst from a new channel, the sliding-window rate limiter throttles requests over the limit, and only calls within the limit reach the legacy core."
+  caption="Caching removes repeat load entirely; the sliding window caps what's left, so the legacy core only ever sees traffic it can handle."
+  participants={[
+    { id: 'channel', title: 'Digital channel', sub: 'new service' },
+    { id: 'svc', title: 'Integration service', sub: 'rate limiter' },
+    { id: 'cache', title: 'Redis', sub: 'response cache' },
+    { id: 'core', title: 'Legacy core', sub: 'fixed capacity' },
+  ]}
+  items={[
+    { type: 'msg', from: 'channel', to: 'svc', label: 'request' },
+    { type: 'msg', from: 'svc', to: 'cache', label: 'lookup' },
+    { type: 'msg', from: 'cache', to: 'svc', label: 'hit', reply: true },
+    { type: 'msg', from: 'svc', to: 'channel', label: 'cached response — core never called', reply: true },
+    { type: 'divider', label: 'Burst from a new channel — cache misses' },
+    { type: 'msg', from: 'channel', to: 'svc', label: 'requests × N' },
+    { type: 'note', at: 'svc', label: 'sliding window full → throttle', accent: true },
+    { type: 'msg', from: 'svc', to: 'channel', label: 'throttled — over the limit', reply: true },
+    { type: 'msg', from: 'svc', to: 'core', label: 'calls within the limit only' },
+    { type: 'msg', from: 'core', to: 'svc', label: 'response', reply: true },
+    { type: 'msg', from: 'svc', to: 'cache', label: 'store for reuse' },
+  ]}
+/>
+
+**Shipping it safely.** Changes in front of a core banking system can't be rolled out on hope, so each release went out blue/green or as a canary through CI/CD and ArgoCD, taking a slice of real traffic first with an instant way back.
+
+## Outcome
+
+Duplicate payment processing resolved, lower latency in front of the legacy systems, new channels that could grow without putting the cores at risk, safer releases, and integration services that were easier to change.

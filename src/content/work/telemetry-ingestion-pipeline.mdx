@@ -1,0 +1,81 @@
+---
+title: Distributed Telemetry Ingestion Pipeline
+company: Wipro
+area: Distributed systems
+order: 5
+summary: A Go and Kafka ingestion pipeline on Kubernetes that absorbed four times its original traffic while staying at 99.95% availability, because every stage could fail, retry and scale without losing or duplicating data.
+metrics:
+  - value: "4x"
+    label: traffic growth absorbed
+  - value: "99.95%"
+    label: availability sustained
+stack: [Go, Apache Kafka, Redis, Kubernetes]
+role:
+  title: Software Engineer, Distributed Telemetry Pipeline
+  period: Aug 2019 – Jul 2021
+  scope: The Go ingestion pipeline on Kafka, Redis and Kubernetes.
+---
+
+import SequenceDiagram from '../../components/SequenceDiagram.astro';
+
+## Context
+
+The pipeline ingested telemetry from distributed sources and passed it downstream for processing. Traffic grew to four times its starting volume, and the system had to keep up without dropping data, double-counting it, or needing someone to resize it by hand.
+
+## Approach
+
+- Go processors consuming from Kafka, running on Kubernetes.
+- Redis for the fast shared state the processors needed between steps.
+- Checkpointed processing, so a restarted processor resumes from where it stopped instead of from the beginning.
+- Dead-letter queues for messages that can't be processed, so one bad record doesn't block a partition.
+- Autoscaling on Kafka consumer lag rather than CPU.
+
+## Key decisions
+
+**Idempotent processors, not exactly-once hopes.** Kafka redelivers after failures and rebalances. Each processor was made idempotent, so a message seen twice has the same effect as one seen once, which made retries and restarts safe by design.
+
+**Scale on the signal that matters.** CPU says little about whether a consumer is falling behind; consumer lag says exactly that. Scaling on lag added capacity when backlogs built up and released it when they drained.
+
+**Isolate poison messages.** Sending unprocessable records to a dead-letter queue kept the main flow moving and left the failures somewhere they could be inspected and replayed.
+
+## Production story
+
+### Keeping up while traffic grew fourfold
+
+**What happened.** As traffic grew, a fixed-size consumer fleet risked falling behind at peaks. Growth also made failure modes more frequent: every restart or rebalance could replay messages that had already been processed, and a single record that couldn't be processed could stall its whole partition.
+
+**The fix.** Each failure mode got its own answer:
+
+- **Scale on consumer lag, not CPU.** Lag measures directly whether consumers are keeping up, so the autoscaler added processors when backlogs built and removed them when they drained.
+- **Idempotent, checkpointed processors.** Adding processors triggers rebalances, and rebalances replay messages. Because every processor checkpoints its progress and is idempotent, a replayed message has no extra effect.
+- **Dead-letter queues.** A record that can't be processed is parked for inspection and replay, and the partition keeps moving.
+
+<SequenceDiagram
+  id="seq-lag-scaling"
+  title="Scaling through a surge: processors consume and checkpoint records. When traffic surges, the autoscaler sees consumer lag rising and adds processors. The resulting rebalance redelivers some records, which the idempotent processors recognise as already checkpointed and skip. A malformed record is sent to the dead-letter queue so the partition keeps moving."
+  caption="Each mechanism makes the next one safe: lag-based scaling causes rebalances, idempotency makes the replays harmless, and the dead-letter queue keeps one bad record from stalling a partition."
+  participants={[
+    { id: 'kafka', title: 'Kafka', sub: 'partitioned topics' },
+    { id: 'proc', title: 'Go processors', sub: 'idempotent' },
+    { id: 'scaler', title: 'Autoscaler', sub: 'consumer lag' },
+    { id: 'dlq', title: 'Dead-letter queue', sub: 'inspect · replay' },
+  ]}
+  items={[
+    { type: 'msg', from: 'kafka', to: 'proc', label: 'records' },
+    { type: 'note', at: 'proc', label: 'process · checkpoint' },
+    { type: 'divider', label: 'Traffic surge — consumer lag grows' },
+    { type: 'msg', from: 'scaler', to: 'kafka', label: 'read consumer lag' },
+    { type: 'msg', from: 'kafka', to: 'scaler', label: 'lag rising', reply: true },
+    { type: 'msg', from: 'scaler', to: 'proc', label: 'add processors' },
+    { type: 'note', at: 'kafka', label: 'rebalance → some records replayed' },
+    { type: 'msg', from: 'kafka', to: 'proc', label: 'replayed record' },
+    { type: 'note', at: 'proc', label: 'already checkpointed → no effect', accent: true },
+    { type: 'msg', from: 'kafka', to: 'proc', label: 'malformed record' },
+    { type: 'msg', from: 'proc', to: 'dlq', label: 'park for inspection' },
+    { type: 'msg', from: 'proc', to: 'kafka', label: 'commit · keep moving' },
+  ]}
+/>
+
+## Outcome
+
+The pipeline sustained 4x traffic growth at 99.95% availability.
