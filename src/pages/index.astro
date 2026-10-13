@@ -32,9 +32,9 @@ const hasCv = fs.existsSync(path.join(process.cwd(), 'public', profile.cvFile));
       <p class="intro">{profile.intro}</p>
       <div class="cta">
         <a class="btn btn-primary" href="#work">See selected work</a>
-        {hasCv && <a class="btn" href={`/${profile.cvFile}`} download><span aria-hidden="true">↓</span> Download CV</a>}
+        {hasCv && <a class="btn" href={`/${profile.cvFile}`} download data-goatcounter-click="cv-download-hero" data-goatcounter-title="CV download (hero)"><span aria-hidden="true">↓</span> Download CV</a>}
         <a class="btn" href="#contact">Get in touch</a>
-        <a class="btn btn-ghost" href={profile.links.linkedin} target="_blank" rel="noopener">LinkedIn <span aria-hidden="true">↗</span></a>
+        <a class="btn btn-ghost" href={profile.links.linkedin} target="_blank" rel="noopener" data-goatcounter-click="linkedin-hero" data-goatcounter-title="LinkedIn (hero)">LinkedIn <span aria-hidden="true">↗</span></a>
       </div>
     </div>
     <div class="container highlights">
@@ -182,9 +182,9 @@ const hasCv = fs.existsSync(path.join(process.cwd(), 'public', profile.cvFile));
     <p class="contact-sub">Based in {profile.location}. Open to roles in {profile.regions}.</p>
     <div class="channels">
       <div class="channel"><span class="eyebrow">Email</span><CopyEmail email={profile.email} /></div>
-      <div class="channel"><span class="eyebrow">LinkedIn</span><a href={profile.links.linkedin} target="_blank" rel="noopener">linkedin.com/in/zeeshan-imdad</a></div>
+      <div class="channel"><span class="eyebrow">LinkedIn</span><a href={profile.links.linkedin} target="_blank" rel="noopener" data-goatcounter-click="linkedin-contact" data-goatcounter-title="LinkedIn (contact)">linkedin.com/in/zeeshan-imdad</a></div>
       <div class="channel"><span class="eyebrow">GitHub</span><a href={profile.links.github} target="_blank" rel="noopener">github.com/xeeshan16</a></div>
-      {hasCv && <div class="channel"><span class="eyebrow">CV</span><a href={`/${profile.cvFile}`} download>Download PDF <span aria-hidden="true">↓</span></a></div>}
+      {hasCv && <div class="channel"><span class="eyebrow">CV</span><a href={`/${profile.cvFile}`} download data-goatcounter-click="cv-download-contact" data-goatcounter-title="CV download (contact)">Download PDF <span aria-hidden="true">↓</span></a></div>}
       <div class="channel"><span class="eyebrow">LeetCode</span><a href={profile.links.leetcode} target="_blank" rel="noopener">leetcode.com/u/zeeshan_16</a></div>
     </div>
   </Section>

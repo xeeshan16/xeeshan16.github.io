@@ -4,7 +4,7 @@ const { email } = Astro.props;
 ---
 <span class="copy-email">
   <a href={`mailto:${email}`} data-email>{email}</a>
-  <button type="button" class="copy" data-copy={email}>Copy</button>
+  <button type="button" class="copy" data-copy={email} data-goatcounter-click="email-copy" data-goatcounter-title="Email copied">Copy</button>
 </span>
 
 <script>

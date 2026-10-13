@@ -68,6 +68,14 @@ const personSchema = {
         if (t === 'light' || t === 'dark') document.documentElement.setAttribute('data-theme', t);
       } catch (e) {}
     </script>
+    {import.meta.env.PROD && profile.analytics.goatcounter && (
+      <script
+        is:inline
+        async
+        data-goatcounter={`https://${profile.analytics.goatcounter}.goatcounter.com/count`}
+        src="https://gc.zgo.at/count.js"
+      ></script>
+    )}
   </head>
   <body>
     <a class="skip-link" href="#main">Skip to content</a>

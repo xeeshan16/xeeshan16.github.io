@@ -4,7 +4,7 @@ const year = new Date().getFullYear();
 ---
 <footer class="site-footer">
   <div class="container row">
-    <span>© {year} {profile.name} · {profile.location}</span>
+    <span>© {year} {profile.name} · {profile.location}{profile.analytics.goatcounter && <> · Cookie-free analytics by <a href="https://www.goatcounter.com" target="_blank" rel="noopener">GoatCounter</a></>}</span>
     <span class="links">
       <a href={profile.links.linkedin} target="_blank" rel="noopener">LinkedIn</a>
       <a href={profile.links.github} target="_blank" rel="noopener">GitHub</a>

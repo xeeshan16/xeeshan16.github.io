@@ -19,6 +19,8 @@ export const profile = {
   },
   // Drop your CV into /public with this exact name and the "Download CV" button appears automatically.
   cvFile: 'Zeeshan-Imdad-CV.pdf',
+  // GoatCounter site code (https://<code>.goatcounter.com). Analytics load only in production builds; set to '' to turn them off.
+  analytics: { goatcounter: 'xeeshan16' },
 };
 
 // Headline numbers on the home page. Keep these identical to your CV.
