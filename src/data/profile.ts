@@ -23,6 +23,24 @@ export const profile = {
   analytics: { goatcounter: 'xeeshan16' },
 };
 
+// The About section on the home page. The photo lives in /public.
+export const about = {
+  photo: '/zeeshan-imdad.jpg',
+  photoAlt: 'Portrait of Zeeshan Imdad',
+  heading: 'I build the systems that have to be right the first time.',
+  paragraphs: [
+    "I'm a Lead Backend Engineer at ADCB in Abu Dhabi, where I lead a team of six building card and wallet payment services and the AI Operations Copilot our on-call engineers use during live incidents. Over seven years — a Kafka telemetry pipeline at Wipro, banking integrations at Publicis Sapient, high-throughput observability at SolarWinds — the common thread has been systems where a duplicate, a dropped message or a slow query has real consequences.",
+    'What I care about most is correctness under failure: idempotency, back-pressure, reconciliation, and knowing exactly what a system does when a dependency slows down or a message arrives twice. Lately that includes making LLM-based systems trustworthy enough for production: grounded in evidence, gated by validation, and honest about what they don\'t know.',
+    'As a lead, I write the technical specifications, estimate with product, run design and code reviews, and mentor engineers. I like turning an ambiguous problem into a design a team can build with confidence.',
+  ],
+  facts: [
+    { label: 'Based in', value: 'Abu Dhabi, UAE' },
+    { label: 'Experience', value: '7+ years, since 2019' },
+    { label: 'Currently', value: 'Lead Backend Engineer, ADCB' },
+    { label: 'Open to', value: 'Senior backend & AI platform roles in the UAE, Europe, UK and New Zealand' },
+  ],
+};
+
 // Headline numbers on the home page. Keep these identical to your CV.
 export const highlights = [
   { value: '~60%', label: 'lower MTTR across 10 banking services with the AI Operations Copilot' },

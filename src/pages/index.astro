@@ -6,7 +6,7 @@ import Base from '../layouts/Base.astro';
 import Section from '../components/Section.astro';
 import Metrics from '../components/Metrics.astro';
 import CopyEmail from '../components/CopyEmail.astro';
-import { profile, highlights, experience, principles, skills, certifications, recognition } from '../data/profile';
+import { profile, about, highlights, experience, principles, skills, certifications, recognition } from '../data/profile';
 import { diagrams } from '../data/architecture';
 import { readingMinutes, storyCount } from '../lib/case-study';
 
@@ -90,6 +90,23 @@ const hasCv = fs.existsSync(path.join(process.cwd(), 'public', profile.cvFile));
         </li>
       ))}
     </ul>
+  </Section>
+
+  <Section id="about" label="About">
+    <div class="about">
+      <figure class="portrait">
+        <img src={about.photo} alt={about.photoAlt} width="320" height="400" loading="lazy" decoding="async" />
+      </figure>
+      <div class="about-text">
+        <h3 class="about-h">{about.heading}</h3>
+        {about.paragraphs.map((p) => <p>{p}</p>)}
+        <dl class="facts">
+          {about.facts.map((f) => (
+            <div><dt class="eyebrow">{f.label}</dt><dd>{f.value}</dd></div>
+          ))}
+        </dl>
+      </div>
+    </div>
   </Section>
 
   <Section id="experience" label="Experience">
@@ -260,6 +277,33 @@ const hasCv = fs.existsSync(path.join(process.cwd(), 'public', profile.cvFile));
     .more-metric { grid-column: 2; grid-row: 2; }
     .more-arrow { grid-row: 1; grid-column: 3; }
   }
+
+  .about { display: grid; grid-template-columns: 260px minmax(0, 1fr); gap: clamp(28px, 5vw, 56px); align-items: start; }
+  @media (max-width: 760px) { .about { grid-template-columns: minmax(0, 1fr); } }
+  .portrait { position: relative; margin: 0; width: 100%; max-width: 260px; }
+  .portrait::before {
+    content: ''; position: absolute; inset: 12px -12px -12px 12px; border: 1.5px solid var(--accent);
+    border-radius: var(--radius); z-index: 0;
+  }
+  .portrait img {
+    position: relative; z-index: 1; display: block; width: 100%; height: auto; aspect-ratio: 4 / 5; object-fit: cover;
+    border-radius: var(--radius); border: 1px solid var(--rule); background: var(--surface);
+  }
+  @media (max-width: 760px) { .portrait { max-width: 220px; } }
+  .about-h {
+    font-family: var(--font-display); font-variation-settings: 'wdth' 112; font-weight: 750;
+    font-size: var(--step-3); line-height: 1.06; letter-spacing: -0.015em; margin: 0 0 20px; max-width: 20ch;
+  }
+  .about-text p { margin: 0 0 14px; max-width: 64ch; }
+  .about-text p:first-of-type { font-size: var(--step-1); line-height: 1.6; }
+  .facts {
+    margin: 26px 0 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0;
+    border-top: 1px solid var(--rule);
+  }
+  @media (max-width: 520px) { .facts { grid-template-columns: minmax(0, 1fr); } }
+  .facts > div { padding: 14px 16px 14px 0; border-bottom: 1px solid var(--rule); min-width: 0; }
+  .facts dt { margin-bottom: 4px; }
+  .facts dd { margin: 0; font-weight: 500; line-height: 1.45; }
 
   .roles { list-style: none; margin: 0; padding: 0; display: grid; }
   .roles > li { position: relative; padding: 0 0 36px 32px; }
