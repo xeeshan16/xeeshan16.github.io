@@ -3,17 +3,17 @@ title: High-Throughput Observability Platform
 company: SolarWinds
 area: Observability
 order: 3
-summary: Go stream processors and Java ETL workers that keep p99 queries under a second on high-throughput telemetry, streaming anomaly detection that alerts on a one-second cadence, and an AI-assisted pipeline built to survive LLM outages and cost spikes.
+summary: Go stream processors and Java ETL workers that keep p99 queries under a second on high-throughput telemetry, streaming anomaly detection that alerts on a one-second cadence, a vendor-neutral OpenTelemetry layer exporting over OTLP to New Relic and Datadog, and an AI-assisted pipeline built to survive LLM outages and cost spikes.
 metrics:
   - value: "<1s"
     label: p99 query latency on high-throughput workloads
   - value: "1s"
     label: alerting cadence into ServiceNow and PagerDuty
-stack: [Go, Java, Spring Boot, Project Reactor, Kafka, ClickHouse, PostgreSQL, MongoDB, DynamoDB, Apache Spark, GCP BigQuery, GKE, AWS EKS, Terraform]
+stack: [Go, Java, Spring Boot, Project Reactor, OpenTelemetry, OTel Collector, OTLP, New Relic, Datadog, Kafka, ClickHouse, PostgreSQL, MongoDB, DynamoDB, Apache Spark, GCP BigQuery, GKE, AWS EKS, Terraform]
 role:
   title: Senior Software Engineer, Observability Platform
   period: Jul 2023 – Nov 2025
-  scope: Go stream processors, Java ETL workers, streaming alerting, LLM reliability controls and DynamoDB services. Mentored 4 engineers.
+  scope: Go stream processors, Java ETL workers, streaming alerting, the OpenTelemetry instrumentation layer, LLM reliability controls and DynamoDB services. Mentored 4 engineers.
 ---
 
 import SequenceDiagram from '../../components/SequenceDiagram.astro';
@@ -28,6 +28,7 @@ An observability platform is only useful if engineers can query it while an inci
 - Reactive buffering with Project Reactor to absorb bursts without overwhelming downstream stores.
 - Indexing and query tuning to keep p99 query latency under a second.
 - Spark Structured Streaming for anomaly detection on GCP (GKE, BigQuery), alerting into ServiceNow and PagerDuty every second.
+- A vendor-neutral OpenTelemetry layer for the platform's own services: the OTel Go SDK and the OTel Java agent emit traces, metrics and logs over OTLP to OpenTelemetry Collector pipelines, which export to New Relic and Datadog.
 - LLM-written summaries in an AI-assisted part of the pipeline, guarded by provider failover, circuit breakers and token budgets.
 - Low-latency Go services on DynamoDB with optimistic concurrency, and partner APIs secured with OAuth2, mutual TLS and HMAC request signing.
 - Services deployed to AWS EKS through CI/CD, with infrastructure managed in Terraform.
@@ -37,6 +38,8 @@ An observability platform is only useful if engineers can query it while an inci
 **Apply backpressure instead of buying headroom.** Reactive buffering smooths ingestion spikes so the stores see a steady load, rather than sizing everything for the peak.
 
 **Fix latency at the data layer.** Shape and index data on the way in, so queries stay cheap at read time, rather than adding compute on the way out.
+
+**Vendor-neutral by default.** Services emit only OpenTelemetry over OTLP, and the Collector decides where telemetry goes, so New Relic and Datadog can be added or swapped without touching application code.
 
 **Treat the LLM as an unreliable dependency.** Provider failover, circuit breakers and token budgets mean a slow provider, an outage or a runaway prompt degrades the summaries but never blocks ingestion or alerting, and LLM spend stays inside a budget.
 
@@ -93,10 +96,22 @@ An observability platform is only useful if engineers can query it while an inci
 
 **The approach.** Three controls around every LLM call: **provider failover**, so a failing provider is replaced by another; **circuit breakers**, so a slow provider is cut off quickly instead of tying up workers; and **token budgets**, so a runaway prompt can't blow through the cost limit. The summaries are best-effort by design: if every provider is down, operators get the alert without the summary.
 
+### Vendor-neutral instrumentation with OpenTelemetry
+
+**The problem.** The platform's own Go and Java services needed traces, metrics and logs that engineers could follow end to end, without tying every service to one vendor's agent or SDK.
+
+**The approach.** Java services use the OpenTelemetry Java agent for auto-instrumentation, and Go services use the OTel Go SDK. Shared semantic conventions keep attribute names consistent across both languages, and trace context is propagated across service calls and Kafka hops, so a single distributed trace follows a request end to end. Everything leaves the service as OTLP and lands on OpenTelemetry Collector pipelines (receivers, then batch, attributes and sampling processors, then exporters), which send it on over OTLP to New Relic and Datadog.
+
+### Keeping telemetry cost under control
+
+**The problem.** On a high-throughput platform, telemetry about the platform can grow as fast as the traffic itself, and one high-cardinality attribute on a metric multiplies the number of time series a backend has to store.
+
+**The approach.** Three levers, all in the Collector rather than in application code: trace sampling, so routine traffic is represented without keeping every trace; cardinality control, dropping or bucketing high-cardinality attributes before they reach a metric; and retention set per signal, so each kind of telemetry is kept only as long as it is useful.
+
 ### Optimistic concurrency on DynamoDB
 
 **The approach.** The low-latency Go services on DynamoDB use optimistic concurrency instead of locks: each write is conditional on the version it read, so a concurrent update makes the write fail cleanly and the service re-reads and retries. Nothing waits on a lock, which keeps latency low when contention is rare.
 
 ## Outcome
 
-Sub-second p99 query latency on high-throughput workloads, anomaly alerts reaching on-call tools within a second, and LLM features that degrade gracefully instead of failing the pipeline.
+Sub-second p99 query latency on high-throughput workloads, anomaly alerts reaching on-call tools within a second, services instrumented once with OpenTelemetry and exported to multiple vendors, and LLM features that degrade gracefully instead of failing the pipeline.

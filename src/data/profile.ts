@@ -27,7 +27,7 @@ export const about = {
   photoAlt: 'Zeeshan Imdad',
   tagline: 'Lead Backend Engineer building systems for payments, event streaming and agentic AI.',
   paragraphs: [
-    'I lead a team of six at ADCB in Abu Dhabi, building card and wallet payment services and the AI Operations Copilot our on-call engineers use during live incidents. Before that: high-throughput observability at SolarWinds, banking integrations at Publicis Sapient, and a Kafka telemetry pipeline at Wipro.',
+    'I lead a team of six at ADCB in Abu Dhabi, building card and wallet payment services and the AI Operations Copilot our on-call engineers use during live incidents. Before that: high-throughput, OpenTelemetry-based observability at SolarWinds, banking integrations at Publicis Sapient, and a Kafka telemetry pipeline at Wipro.',
     "I care most about correctness under failure — idempotency, back-pressure, reconciliation — and about making LLM systems trustworthy enough for production. As a lead, I write the specs, run design and code reviews, and mentor engineers.",
   ],
   facts: [
@@ -39,7 +39,7 @@ export const about = {
 
 // Headline numbers on the home page. Keep these identical to your CV.
 export const highlights = [
-  { value: '~60%', label: 'lower MTTR across 10 banking services with the AI Operations Copilot' },
+  { value: '~60%', label: 'lower MTTR across 10 banking services, with the AI Operations Copilot as a key part' },
   { value: '~40%', label: 'less incident troubleshooting time across 100K+ daily events' },
   { value: '99.95%', label: 'availability held through 4x traffic growth' },
   { value: '7+', label: 'years building backend and distributed systems' },
@@ -52,8 +52,8 @@ export const experience: { company: string; title: string; period: string; note?
     period: 'Nov 2025 – Present',
     note: 'Abu Dhabi',
     summary:
-      'Lead a team of 6 engineers, owning architecture through technical specifications, estimation, and design and code reviews. Built the multi-agent AI Operations Copilot (~60% lower MTTR across 10 services), a Kafka- and SQS-driven payment architecture with idempotent consumers for 100K+ card and payment transactions, and Python telemetry analytics and Kafka automation (~40% less troubleshooting time across 100K+ daily events). Kept payments stable through downstream slowdowns with back-pressure and circuit breakers, and fixed wallet deadlocks and GC-driven latency spikes.',
-    stack: ['Java 17/21', 'Kotlin', 'Spring Boot', 'Kafka', 'SQS', 'Resilience4j', 'PostgreSQL', 'Oracle', 'LangGraph', 'Azure OpenAI'],
+      'Lead a team of 6 engineers, owning architecture through technical specifications, estimation, and design and code reviews. Built the multi-agent AI Operations Copilot (part of ~60% lower MTTR across 10 services), a Kafka- and SQS-driven payment architecture with idempotent consumers for 100K+ card and payment transactions, and Python telemetry analytics and Kafka automation (~40% less troubleshooting time across 100K+ daily events). Services are instrumented with OpenTelemetry and Micrometer, with SLO-based alerting in New Relic, and OTel Collector pipelines run across AKS and on-premises bare-metal and air-gapped environments. Kept payments stable through downstream slowdowns with back-pressure and circuit breakers, and fixed wallet deadlocks and GC-driven latency spikes.',
+    stack: ['Java 17/21', 'Kotlin', 'Spring Boot', 'Kafka', 'SQS', 'Resilience4j', 'PostgreSQL', 'Oracle', 'OpenTelemetry', 'Micrometer', 'New Relic', 'LangGraph', 'Azure OpenAI'],
   },
   {
     company: 'SolarWinds',
@@ -61,8 +61,8 @@ export const experience: { company: string; title: string; period: string; note?
     period: 'Jul 2023 – Nov 2025',
     note: 'Remote',
     summary:
-      'Go stream processors and Java ETL workers ingesting Kafka events into ClickHouse with sub-second p99 query latency; Spark Structured Streaming anomaly detection alerting ServiceNow and PagerDuty on a 1-second cadence; provider failover, circuit breakers and token budgets to control LLM cost and reliability in an AI-assisted pipeline; low-latency Go services on DynamoDB with optimistic concurrency, and partner APIs secured with OAuth2, mTLS and HMAC. Mentored 4 engineers.',
-    stack: ['Go', 'Java', 'Kafka', 'ClickHouse', 'Project Reactor', 'Spark', 'GCP', 'DynamoDB'],
+      'Go stream processors and Java ETL workers ingesting Kafka events into ClickHouse with sub-second p99 query latency; Spark Structured Streaming anomaly detection alerting ServiceNow and PagerDuty on a 1-second cadence; a vendor-neutral OpenTelemetry layer exporting over OTLP to New Relic and Datadog; provider failover, circuit breakers and token budgets to control LLM cost and reliability in an AI-assisted pipeline; low-latency Go services on DynamoDB with optimistic concurrency, and partner APIs secured with OAuth2, mTLS and HMAC. Mentored 4 engineers.',
+    stack: ['Go', 'Java', 'Kafka', 'ClickHouse', 'OpenTelemetry', 'New Relic', 'Datadog', 'Project Reactor', 'Spark', 'GCP', 'DynamoDB'],
   },
   {
     company: 'Publicis Sapient',
@@ -102,7 +102,8 @@ export const skills = [
   { group: 'Languages', items: ['Java 17/21', 'Go', 'Python', 'Kotlin', 'TypeScript', 'SQL'] },
   { group: 'Backend & distributed systems', items: ['Spring Boot', 'FastAPI', 'Django', 'Kafka', 'RabbitMQ', 'SQS/SNS', 'gRPC', 'REST', 'Microservices', 'Idempotency', 'Back-pressure', 'Circuit breakers', 'JVM GC tuning'] },
   { group: 'Data', items: ['PostgreSQL', 'Oracle', 'MySQL', 'Redis', 'DynamoDB', 'MongoDB', 'ClickHouse', 'BigQuery', 'Spark', 'Flink'] },
-  { group: 'Cloud & DevOps', items: ['Kubernetes', 'Docker', 'Terraform', 'ArgoCD', 'GitHub Actions', 'Jenkins', 'Azure', 'AWS', 'GCP', 'OpenStack', 'OpenTelemetry', 'Prometheus'] },
+  { group: 'Cloud & DevOps', items: ['Kubernetes', 'Docker', 'Terraform', 'ArgoCD', 'GitHub Actions', 'Jenkins', 'Azure', 'AWS', 'GCP', 'OpenStack'] },
+  { group: 'Observability', items: ['OpenTelemetry (Java & Go SDKs, Java agent, Collector, OTLP)', 'Micrometer', 'New Relic (NRQL)', 'Datadog', 'AppDynamics', 'Prometheus', 'Grafana', 'Elasticsearch/Kibana', 'SLOs & error budgets'] },
   { group: 'AI', items: ['LangGraph', 'LangChain', 'MCP', 'RAG', 'Pinecone', 'Azure OpenAI', 'LLM evaluation', 'Guardrails'] },
 ];
 

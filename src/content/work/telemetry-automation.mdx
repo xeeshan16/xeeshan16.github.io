@@ -3,17 +3,17 @@ title: Telemetry Analytics & Kafka Automation
 company: ADCB
 area: Platform operations
 order: 6
-summary: Python services that analyse operational telemetry, and Kafka-driven automation that acts on it, so engineers spend less time digging before they can fix an incident.
+summary: Python services that analyse operational telemetry, Kafka-driven automation that acts on it, and OpenTelemetry Collector pipelines running the same way in the cloud and on-premises, so engineers spend less time digging before they can fix an incident.
 metrics:
   - value: "100K+"
     label: operational events a day
   - value: "~40%"
     label: less time spent troubleshooting incidents
-stack: [Python, FastAPI, Kafka]
+stack: [Python, FastAPI, Kafka, OpenTelemetry Collector, OTLP, Azure AKS]
 role:
   title: Lead Backend Engineer
   period: Nov 2025 – Present
-  scope: Built the telemetry analytics services and the Kafka-driven automation.
+  scope: Built the telemetry analytics services, the Kafka-driven automation and the OpenTelemetry Collector pipelines.
 ---
 
 import SequenceDiagram from '../../components/SequenceDiagram.astro';
@@ -26,6 +26,13 @@ Operational signals were spread across systems, and engineers assembled the pict
 
 - FastAPI services that ingest and analyse operational telemetry.
 - Kafka consumers that react to known event patterns and trigger automated steps, so routine work doesn't wait for a person.
+- OpenTelemetry Collector pipelines on Azure AKS and in the bank's on-premises bare-metal and air-gapped environments, so telemetry looks the same wherever a service runs.
+
+## Key decisions
+
+**One pipeline, every environment.** The same OpenTelemetry Collector setup runs on AKS and in the bank's on-premises bare-metal and air-gapped environments. In air-gapped zones, a local Collector sends to a gateway Collector, which exports to the bank's internal observability backend, so nothing needs a route to the internet.
+
+**Correlate before you alert.** Metrics, logs and traces carry the same trace IDs and service and environment attributes, so an alert links straight to the traces and logs behind it instead of starting a search.
 
 ## Production story
 
@@ -37,6 +44,7 @@ Operational signals were spread across systems, and engineers assembled the pict
 
 - **Known patterns are automated.** Kafka consumers watch for event patterns with known responses and trigger the automated step directly, so routine work doesn't wait for a person.
 - **Everything else arrives pre-assembled.** FastAPI services ingest and analyse the telemetry, so when an engineer is needed they start from an analysed picture instead of a blank page.
+- **Signals are connected, not just collected.** Because metrics, logs and traces share trace IDs and service and environment attributes, the picture an engineer receives already links the alert to the traces and logs behind it.
 
 <SequenceDiagram
   id="seq-pattern-automation"
@@ -63,4 +71,4 @@ Operational signals were spread across systems, and engineers assembled the pict
 
 ## Outcome
 
-The services handle more than 100,000 operational events a day and cut incident troubleshooting time by about 40%.
+The services handle more than 100,000 operational events a day and cut incident troubleshooting time by about 40%. Correlated metrics, logs and traces shortened both the time to detect an incident (MTTD) and the time to resolve it (MTTR).

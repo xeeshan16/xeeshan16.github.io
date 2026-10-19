@@ -4,11 +4,11 @@ company: ADCB
 area: Cards and wallet payments
 order: 1
 featured: true
-summary: Greenfield payment microservices for cards, wallets and anti-fraud, built around the parts that have to be right every time — idempotency, concurrency, reconciliation and safe rollouts.
+summary: Greenfield payment microservices for cards, wallets and anti-fraud, built around the parts that have to be right every time — idempotency, concurrency, reconciliation, safe rollouts and end-to-end observability.
 metrics:
   - value: "100K+"
     label: card and payment transactions
-stack: [Java 17/21, Kotlin, Spring Boot 3, Spring Security, Hibernate, Resilience4j, PostgreSQL, Oracle, Kafka, SQS, Azure AKS, JUnit 5, Testcontainers, Pact]
+stack: [Java 17/21, Kotlin, Spring Boot 3, Spring Security, Hibernate, Resilience4j, PostgreSQL, Oracle, Kafka, SQS, Azure AKS, OpenTelemetry, Micrometer, New Relic, AppDynamics, JUnit 5, Testcontainers, Pact]
 role:
   title: Lead Backend Engineer
   period: Nov 2025 – Present
@@ -31,6 +31,7 @@ The platform moves card and wallet payments between customer channels, partner n
 - Secure REST APIs with OAuth2 and Spring Security, plus mutual TLS.
 - Containerised services deployed to Azure AKS through CI/CD, with Kubernetes probes and PodDisruptionBudgets so rollouts and node maintenance don't drop traffic.
 - Distributed, time-ordered transaction IDs generated with the Snowflake algorithm, so no service has to ask a central sequence.
+- Services instrumented with the OpenTelemetry Java agent and SDK plus Micrometer, with SLOs, error budgets, NRQL dashboards and alerting in New Relic, alongside AppDynamics.
 
 ## Key decisions
 
@@ -41,6 +42,12 @@ The platform moves card and wallet payments between customer channels, partner n
 **Reconcile everything.** I built reconciliation for card settlement files, wallet balances and mismatches between partner records and core banking, so discrepancies are caught by the system rather than by a customer.
 
 **Test the contracts between services.** Alongside unit tests with JUnit 5 and Mockito and integration tests on real databases with Testcontainers, Pact contract tests catch a breaking API change before it ships.
+
+## Observability and SLOs
+
+**Instrumented from day one.** Every Spring Boot service runs the OpenTelemetry Java agent for auto-instrumentation, and the OTel Java SDK adds custom spans around payment state transitions and core-banking calls, where the time and the risk actually sit. Micrometer exposes business and JVM metrics. Trace context propagates across service calls and Kafka hops, so a single payment can be followed from the customer channel to core banking.
+
+**Alert on what customers feel.** SLOs and error budgets on payment success rate and latency drive NRQL dashboards and alerts in New Relic, alongside AppDynamics.
 
 ## Production stories
 
@@ -76,7 +83,7 @@ The platform moves card and wallet payments between customer channels, partner n
   ]}
 />
 
-**When the outcome is unknown.** The hard case is a crash or timeout after the payment was sent but before its result was recorded. That payment isn't safe to skip and isn't safe to resend. Instead of blindly resubmitting, the consumer marks it PENDING (or UNKNOWN) and verifies the outcome with the authoritative payment or orchestration system. Transient failures get bounded retries; payments that stay unresolved or go stale move into reconciliation, with monitoring and alerting so someone sees them.
+**When the outcome is unknown.** The hard case is a crash or timeout after the payment was sent but before its result was recorded. That payment isn't safe to skip and isn't safe to resend. Instead of blindly resubmitting, the consumer marks it PENDING (or UNKNOWN) and verifies the outcome with the authoritative payment or orchestration system. Transient failures get bounded retries; payments that stay unresolved or go stale move into reconciliation, and an NRQL alert on payments stuck in PENDING beyond a threshold makes sure someone sees them.
 
 <ArchitectureDiagram
   diagram={paymentStateModel}

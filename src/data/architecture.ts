@@ -102,7 +102,7 @@ export const diagrams: Record<string, Diagram> = {
   'payment-orchestration': {
     height: 560,
     title:
-      'Payment orchestration architecture: customer channels and partner networks call secured payment APIs, which route to card, wallet and fraud services on AKS. The services exchange events over Kafka and buffered work over SQS, write to PostgreSQL and Oracle, and post to core banking. Reconciliation checks records against core banking, and fraud and risk changes are validated on a controlled slice of production traffic.',
+      'Payment orchestration architecture: customer channels and partner networks call secured payment APIs, which route to card, wallet and fraud services on AKS. The services exchange events over Kafka and buffered work over SQS, write to PostgreSQL and Oracle, and post to core banking. Reconciliation checks records against core banking, and fraud and risk changes are validated on a controlled slice of production traffic. Services are instrumented with OpenTelemetry and Micrometer, feeding New Relic SLO dashboards and alerts alongside AppDynamics.',
     zones: [
       { id: 'svc', x: 450, y: 20, w: 230, h: 280, label: 'Payment services · AKS', step: 3 },
       { id: 'rollout', x: 20, y: 230, w: 380, h: 310, label: 'Controlled rollout · fraud & risk' },
@@ -127,6 +127,8 @@ export const diagrams: Record<string, Diagram> = {
       { id: 'current', x: 230, y: 280, w: 150, title: 'Current flow', sub: 'existing rules' },
       { id: 'candidate', x: 230, y: 370, w: 150, title: 'Candidate', sub: 'Resilience4j-hardened', kind: 'accent' },
       { id: 'compare', x: 40, y: 470, w: 340, h: 50, title: 'Compare before full rollout', sub: 'latency · errors · false +/− rates' },
+      { id: 'otel', x: 450, y: 460, w: 230, h: 64, title: 'OpenTelemetry', sub: ['Java agent · SDK spans', 'Micrometer metrics'], step: 6 },
+      { id: 'apm', x: 740, y: 460, w: 200, h: 64, title: 'New Relic · AppDynamics', sub: ['NRQL dashboards', 'SLO alerts'], kind: 'external' },
     ],
     edges: [
       { from: 'cust', to: 'api', toAt: 0.169 },
@@ -143,6 +145,8 @@ export const diagrams: Record<string, Diagram> = {
       { from: 'split', to: 'candidate' },
       { from: 'current', to: 'compare', fromSide: 'r', toSide: 'r', via: [[392, 308], [392, 495]] },
       { from: 'candidate', to: 'compare', fromSide: 'b', toSide: 't', toAt: 0.779 },
+      { from: 'svc', to: 'otel', fromSide: 'r', fromAt: 0.96, toSide: 't', toAt: 0.5, via: [[710, 289], [710, 440], [565, 440]], async: true },
+      { from: 'otel', to: 'apm', label: 'OTLP' },
     ],
     steps: [
       'Customer channels and partner networks call the payment APIs over OAuth2 and mutual TLS.',
@@ -150,16 +154,18 @@ export const diagrams: Record<string, Diagram> = {
       'Card, wallet and fraud services exchange events over Kafka and buffered work over SQS. Consumers are idempotent on the transaction ID, back-pressure and circuit breakers isolate slow dependencies, and writes use explicit transaction boundaries on PostgreSQL and Oracle.',
       'A change to fraud or risk logic first takes a controlled slice of production traffic, and its latency, errors and false-positive and false-negative rates are compared with the existing flow.',
       'Reconciliation checks settlement files, wallet balances and partner records against core banking, so mismatches are caught by the system.',
+      'Every service runs the OpenTelemetry Java agent, with SDK spans around payment state transitions and core-banking calls and Micrometer metrics. Trace context crosses service calls and Kafka hops, and SLOs on payment success rate and latency drive NRQL dashboards and alerts in New Relic, alongside AppDynamics.',
     ],
   },
 
   'observability-pipeline': {
-    height: 470,
+    height: 610,
     title:
-      'Observability platform architecture: telemetry lands on Kafka and splits into two paths. On AWS EKS, Go stream processors and Java ETL workers buffer with Project Reactor and write to ClickHouse, PostgreSQL and MongoDB, and a query API serves engineers in under a second. On GCP, Spark Structured Streaming detects anomalies, stores aggregates in BigQuery and alerts ServiceNow and PagerDuty every second.',
+      'Observability platform architecture: telemetry lands on Kafka and splits into two paths. On AWS EKS, Go stream processors and Java ETL workers buffer with Project Reactor and write to ClickHouse, PostgreSQL and MongoDB, and a query API serves engineers in under a second. On GCP, Spark Structured Streaming detects anomalies, stores aggregates in BigQuery and alerts ServiceNow and PagerDuty every second. The platform\'s own Go and Java services are instrumented with OpenTelemetry and send OTLP to Collector pipelines that export to New Relic and Datadog.',
     zones: [
       { id: 'eks', x: 320, y: 20, w: 490, h: 220, label: 'Query path · AWS EKS · Terraform' },
       { id: 'gcp', x: 320, y: 270, w: 490, h: 180, label: 'Alerting path · GCP' },
+      { id: 'otel', x: 20, y: 470, w: 920, h: 125, label: "Instrumentation · OpenTelemetry · the platform's own services" },
     ],
     nodes: [
       { id: 'src', x: 20, y: 207, w: 130, title: 'Telemetry', sub: 'high-throughput', kind: 'external', step: 1 },
@@ -177,6 +183,10 @@ export const diagrams: Record<string, Diagram> = {
       { id: 'llm', x: 700, y: 398, w: 95, h: 44, title: 'LLM summary', sub: 'best effort', kind: 'external', step: 6 },
       { id: 'snow', x: 840, y: 290, w: 100, title: 'ServiceNow', kind: 'external' },
       { id: 'pd', x: 840, y: 370, w: 100, title: 'PagerDuty', kind: 'external' },
+      { id: 'osvc', x: 50, y: 515, w: 210, h: 60, title: 'Go & Java services', sub: ['OTel Go SDK', 'Java agent auto-instrumentation'] },
+      { id: 'otelcol', x: 340, y: 515, w: 240, h: 60, title: 'OTel Collector', sub: ['batch · attributes · sampling', 'cardinality · retention'], kind: 'accent', step: 7 },
+      { id: 'nr', x: 680, y: 500, w: 220, h: 40, title: 'New Relic', kind: 'external' },
+      { id: 'dd', x: 680, y: 550, w: 220, h: 40, title: 'Datadog', kind: 'external' },
     ],
     edges: [
       { from: 'src', to: 'kafka' },
@@ -195,6 +205,9 @@ export const diagrams: Record<string, Diagram> = {
       { from: 'alert', to: 'snow' },
       { from: 'alert', to: 'pd' },
       { from: 'alert', to: 'llm', async: true },
+      { from: 'osvc', to: 'otelcol', label: 'OTLP' },
+      { from: 'otelcol', to: 'nr', fromAt: 0.25, label: 'OTLP' },
+      { from: 'otelcol', to: 'dd', fromAt: 0.75 },
     ],
     steps: [
       'Telemetry lands on Kafka and feeds two independent paths, so a slow query path can never delay an alert.',
@@ -203,6 +216,7 @@ export const diagrams: Record<string, Diagram> = {
       'Spark Structured Streaming on GKE aggregates the stream, flags anomalies and lands aggregates in BigQuery for analysis.',
       'Alerts reach ServiceNow and PagerDuty on a one-second cadence.',
       'LLM-written summaries are best-effort, behind provider failover, circuit breakers and token budgets, so an LLM outage or cost spike never delays an alert.',
+      'The platform\'s own Go and Java services are instrumented with OpenTelemetry (Go SDK, Java agent) and send traces, metrics and logs over OTLP to Collector pipelines that batch, enrich, sample and control cardinality before exporting to New Relic and Datadog, so no service is tied to one vendor.',
     ],
   },
 
@@ -279,12 +293,19 @@ export const diagrams: Record<string, Diagram> = {
   },
 
   'telemetry-automation': {
-    height: 350,
+    height: 510,
     title:
-      'Telemetry analytics and automation architecture: banking services emit operational events to Kafka; FastAPI services analyse them for on-call engineers, and Kafka consumers match known event patterns and trigger automated steps back on the services.',
-    zones: [{ id: 'py', x: 400, y: 20, w: 370, h: 280, label: 'Python services' }],
+      'Telemetry analytics and automation architecture: banking services emit operational events to Kafka; FastAPI services analyse them for on-call engineers, and Kafka consumers match known event patterns and trigger automated steps back on the services. OpenTelemetry Collectors on AKS and in on-premises bare-metal and air-gapped environments export through a gateway Collector to the internal observability backend.',
+    zones: [
+      { id: 'py', x: 400, y: 20, w: 370, h: 280, label: 'Python services' },
+      { id: 'otel', x: 20, y: 360, w: 920, h: 135, label: 'OpenTelemetry Collector pipelines · cloud and on-premises' },
+    ],
     nodes: [
       { id: 'sys', x: 20, y: 100, w: 150, title: 'Banking services', sub: 'operational signals', kind: 'external', step: 1 },
+      { id: 'colaks', x: 50, y: 395, w: 250, h: 44, title: 'Collector · Azure AKS', sub: 'cloud services' },
+      { id: 'colprem', x: 50, y: 445, w: 250, h: 44, title: 'Collector · on-premises', sub: 'bare-metal · air-gapped' },
+      { id: 'gw', x: 380, y: 415, w: 200, h: 60, title: 'Gateway Collector', sub: 'internal export', kind: 'accent', step: 4 },
+      { id: 'backend', x: 660, y: 415, w: 260, h: 60, title: 'Observability backend', sub: ['metrics · logs · traces', 'shared trace IDs'], kind: 'store' },
       { id: 'kafka', x: 210, y: 100, w: 150, title: 'Kafka', sub: '100K+ events / day', kind: 'queue' },
       { id: 'analytics', x: 420, y: 60, w: 170, title: 'Telemetry analytics', sub: ['FastAPI', 'ingest · analyse'], step: 2 },
       { id: 'consumers', x: 420, y: 180, w: 170, title: 'Pattern consumers', sub: ['Kafka consumers', 'known event patterns'], kind: 'accent', step: 3 },
@@ -298,11 +319,15 @@ export const diagrams: Record<string, Diagram> = {
       { from: 'analytics', to: 'eng', label: 'analysed picture' },
       { from: 'consumers', to: 'auto' },
       { from: 'auto', to: 'sys', fromSide: 'b', toSide: 'b', via: [[697.5, 320], [95, 320]], label: 'automated action' },
+      { from: 'colaks', to: 'gw', toAt: 0.3 },
+      { from: 'colprem', to: 'gw', toAt: 0.7 },
+      { from: 'gw', to: 'backend', label: 'OTLP' },
     ],
     steps: [
       'Banking services emit operational signals onto Kafka, more than 100,000 events a day.',
       'FastAPI services ingest and analyse the telemetry, so on-call engineers start from an assembled picture instead of building it by hand.',
       'Kafka consumers watch for known event patterns and trigger automated steps, so routine work doesn’t wait for a person.',
+      'OpenTelemetry Collectors run on AKS and in on-premises bare-metal and air-gapped environments; air-gapped zones export through a gateway Collector to the internal backend. Metrics, logs and traces share trace IDs and service and environment attributes, so an alert links straight to the traces and logs behind it.',
     ],
   },
 };
